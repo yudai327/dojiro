@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String?
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+}
+
+model Team {
+  id           Int      @id @default(autoincrement())
+  name         String
+  category     String?  
+  organization String?
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  players      Player[]
+  matchesAsHome Match[] @relation("teamHome")
+  matchesAsAway Match[] @relation("teamAway")
+}
+
+model Player {
+  id            Int      @id @default(autoincrement())
+  teamId        Int      @map("team_id")
+  uniformNumber Int?     @map("uniform_number")
+  name          String
+  kana          String?
+  position      String?
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  team Team @relation(fields: [teamId], references: [id])
+}
+
+model Event {
+  id         Int      @id @default(autoincrement())
+  name       String
+  eventType  String?  @map("event_type")
+  startDate  DateTime? @map("start_date")
+  endDate    DateTime? @map("end_date")
+  venue      String?
+  note       String?
+  isDeleted  Boolean  @default(false) @map("is_deleted")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  matches    Match[]
+}
+
+model Match {
+  id           Int      @id @default(autoincrement())
+  eventId      Int?     @map("event_id")
+  date         DateTime?
+  startTime    DateTime? @map("start_time")
+  court        String?
+  teamHomeId   Int?     @map("team_home_id")
+  teamAwayId   Int?     @map("team_away_id")
+  status       String?
+  youtubeUrl   String?  @map("youtube_url")
+  note         String?
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  event Event? @relation(fields: [eventId], references: [id])
+  teamHome Team? @relation("teamHome", fields: [teamHomeId], references: [id])
+  teamAway Team? @relation("teamAway", fields: [teamAwayId], references: [id])
+  sets  Set[]
+  playerActions PlayerAction[]
+}
+
+model Set {
+  id        Int      @id @default(autoincrement())
+  matchId   Int      @map("match_id")
+  setNumber Int      @map("set_number")
+  homeScore Int?     @map("home_score")
+  awayScore Int?     @map("away_score")
+  status    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id])
+}
+
+model PlayerAction {
+  id         Int      @id @default(autoincrement())
+  matchId    Int      @map("match_id")
+  setId      Int?     @map("set_id")
+  teamId     Int      @map("team_id")
+  playerId   Int      @map("player_id")
+  actionType String   @map("action_type")
+  result     String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  match Match @relation(fields: [matchId], references: [id])
+}
+
+model PlayerMatchStats {
+  id                   Int      @id @default(autoincrement())
+  playerId             Int      @map("player_id")
+  matchId              Int      @map("match_id")
+  attackSuccessCount   Int?     @map("attack_success_count")
+  attackFailCount      Int?     @map("attack_fail_count")
+  catchSuccessCount    Int?     @map("catch_success_count")
+  catchFailCount       Int?     @map("catch_fail_count")
+  cutCount             Int?     @map("cut_count")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+}

@@ -1,0 +1,6 @@
+---
+
+# NOTE: docker-compose.yml has been moved to project root (../docker-compose.yml).
+# The canonical compose file is at the repository root to match the design doc.
+# This file is intentionally left as a stub to avoid accidental use.
+

@@ -1,0 +1,107 @@
+-- MariaDB init SQL for Dojiro (basic schema + minimal seed)
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+CREATE DATABASE IF NOT EXISTS `dojiro` CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci;
+USE `dojiro`;
+
+-- users
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(255) UNIQUE,
+  password_hash VARCHAR(255),
+  is_active TINYINT(1) DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- teams
+CREATE TABLE IF NOT EXISTS teams (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  category VARCHAR(50),
+  organization VARCHAR(100),
+  is_deleted TINYINT(1) DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- players
+CREATE TABLE IF NOT EXISTS players (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  team_id BIGINT,
+  uniform_number INT,
+  name VARCHAR(100),
+  kana VARCHAR(100),
+  position VARCHAR(50),
+  is_deleted TINYINT(1) DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- events
+CREATE TABLE IF NOT EXISTS events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  event_type VARCHAR(20),
+  start_date DATE,
+  end_date DATE,
+  venue VARCHAR(100),
+  note VARCHAR(255),
+  is_deleted TINYINT(1) DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- matches
+CREATE TABLE IF NOT EXISTS matches (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  event_id BIGINT,
+  date DATE,
+  start_time TIME,
+  court VARCHAR(50),
+  team_home_id BIGINT,
+  team_away_id BIGINT,
+  status VARCHAR(20),
+  youtube_url VARCHAR(255),
+  note VARCHAR(255),
+  is_deleted TINYINT(1) DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- sets
+CREATE TABLE IF NOT EXISTS sets (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  match_id BIGINT,
+  set_number INT,
+  home_score INT DEFAULT 0,
+  away_score INT DEFAULT 0,
+  status VARCHAR(20),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- player_actions
+CREATE TABLE IF NOT EXISTS player_actions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  match_id BIGINT,
+  set_id BIGINT,
+  team_id BIGINT,
+  player_id BIGINT,
+  action_type VARCHAR(20),
+  result VARCHAR(10),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+  FOREIGN KEY (set_id) REFERENCES sets(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- Seed a sample team/user for development
+INSERT IGNORE INTO teams (id, name, category, organization) VALUES (1, 'テストチーム', '小学生', 'テストクラブ');
+INSERT IGNORE INTO users (id, name, email, password_hash) VALUES (1, 'テストユーザー', 'dev@example.com', 'password-not-hashed');

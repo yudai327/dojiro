@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    container_name: dojiro-app
+    volumes:
+      - .:/workspace:cached
+    working_dir: /workspace
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: dojiro
+      DB_PASSWORD: dojiro_pass
+      DB_NAME: dojiro
+    depends_on:
+      - db
+
+  db:
+    image: mariadb:11
+    container_name: dojiro-db
+    environment:
+      MARIADB_ROOT_PASSWORD: local_root_pass
+      MARIADB_DATABASE: dojiro
+      MARIADB_USER: dojiro
+      MARIADB_PASSWORD: dojiro_pass
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./.devcontainer/db:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3307:3306"
+
+volumes:
+  db-data:

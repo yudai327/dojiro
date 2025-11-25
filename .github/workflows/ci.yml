@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run lint:check || echo "Lint warnings (non-blocking)"
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: dojiro_test
+          MARIADB_USER: dojiro
+          MARIADB_PASSWORD: dojiro_pass
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run build
+      - name: Setup Prisma Database
+        env:
+          DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test
+        run: |
+          npx prisma db push --accept-data-loss
+          npx prisma db seed
+      - name: Run Unit & Integration Tests
+        run: npm run test:integration -- --run
+        env:
+          DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test

@@ -1,0 +1,33 @@
+{
+  "name": "Dodgeball Score Manager",
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "runServices": [
+    "db"
+  ],
+  "forwardPorts": [
+    3000,
+    3307
+  ],
+  "containerEnv": {
+    "DB_HOST": "db",
+    "DB_PORT": "3306",
+    "DB_USER": "dojiro",
+    "DB_PASSWORD": "dojiro_pass",
+    "DB_NAME": "dojiro"
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": "bash -lc 'if [ -f package.json ]; then npm install; else for d in frontend app web client ui src; do if [ -f \"$d/package.json\" ]; then (cd \"$d\" && npm install); exit 0; fi; done; echo \"No package.json found in workspace root or common subdirs; skipping npm install\"; fi'"
+}

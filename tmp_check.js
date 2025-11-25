@@ -1,0 +1,1 @@
+(async()=>{const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();try{const c=await p.user.count();console.log('user count:',c);}catch(e){console.error('error',e);}finally{await p.$disconnect();}})();
