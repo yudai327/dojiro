@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../lib/prisma';
+import { requireAuth } from '../../../lib/auth';
 
-// GET all matches
 export async function GET(req: NextRequest) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const matches = await prisma.match.findMany({
       where: { isDeleted: false },
@@ -14,8 +17,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST create match
 export async function POST(req: NextRequest) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await req.json();
     const { eventId, date, startTime, court, teamHomeId, teamAwayId, youtubeUrl, note } = body;

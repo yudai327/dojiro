@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../lib/prisma';
+import { requireAuth } from '../../../lib/auth';
 
-// GET all teams
 export async function GET(req: NextRequest) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const teams = await prisma.team.findMany({ where: { isDeleted: false } });
     return NextResponse.json(teams);
@@ -11,8 +14,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST create team
 export async function POST(req: NextRequest) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await req.json();
     const { name, category, organization } = body;

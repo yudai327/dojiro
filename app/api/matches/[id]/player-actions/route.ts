@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma';
+import { requireAuth } from '../../../../lib/auth';
 
-// POST create player action
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const matchId = parseInt(params.id, 10);
     const body = await req.json();
     const { playerId, actionType, result } = body;
 
-    // Get player to find team
     const player = await prisma.player.findUnique({
       where: { id: parseInt(playerId, 10) },
     });
@@ -20,7 +22,6 @@ export async function POST(
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
     }
 
-    // Create player action
     const action = await prisma.playerAction.create({
       data: {
         matchId,
@@ -31,7 +32,6 @@ export async function POST(
       },
     });
 
-    // Update or create player_match_stats
     let stats = await prisma.playerMatchStats.findFirst({
       where: { playerId: player.id, matchId },
     });
@@ -50,7 +50,6 @@ export async function POST(
       });
     }
 
-    // Increment counters based on action
     const updateData: { [key: string]: { increment: number } } = {};
     if (actionType === 'attack') {
       updateData[result === 'success' ? 'attackSuccessCount' : 'attackFailCount'] = { increment: 1 };
@@ -72,11 +71,13 @@ export async function POST(
   }
 }
 
-// GET player actions for match
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const matchId = parseInt(params.id, 10);
     const actions = await prisma.playerAction.findMany({
