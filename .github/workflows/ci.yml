@@ -90,16 +90,23 @@ jobs:
           echo "=== Server log ==="
           cat /tmp/nextjs.log
 
+          # Emit annotation visible in PR regardless of log access
+          echo "::notice title=Server Status::READY=$READY STATUS=$STATUS PID_ALIVE=$(kill -0 $SERVER_PID 2>/dev/null && echo yes || echo no)"
+
           if [ "$READY" != "1" ]; then
-            echo "Server never became ready"
+            echo "::error title=Server Failed::Server never became ready. Last STATUS=$STATUS"
             exit 1
           fi
 
+          # Verify server once more right before tests
+          PREFLIGHT=$(curl -s http://localhost:3000/api/health 2>/dev/null)
+          echo "::notice title=Preflight Health::$PREFLIGHT"
+
           # Run tests and capture output
-          npm run test:integration -- --run --reporter=verbose 2>&1 | tee /tmp/test_output.txt
+          npm run test:integration -- --run --reporter=verbose --reporter=github-actions 2>&1 | tee /tmp/test_output.txt
           TEST_EXIT=${PIPESTATUS[0]}
 
-          echo "=== Test exit: $TEST_EXIT ==="
+          echo "::notice title=Test Exit::code=$TEST_EXIT"
           exit $TEST_EXIT
 
       - name: Show test output (always)
