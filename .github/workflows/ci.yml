@@ -119,6 +119,13 @@ jobs:
           TEST_EXIT=${PIPESTATUS[0]}
 
           echo "::notice title=Test Exit::code=$TEST_EXIT"
+
+          # Write test output to step summary (visible in Actions UI)
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/test_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
           exit $TEST_EXIT
 
       - name: Show test output (always)

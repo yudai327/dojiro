@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 
 const API_BASE = 'http://localhost:3000/api';
 
@@ -10,6 +10,13 @@ function authHeaders(): Record<string, string> {
     ? { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' }
     : { 'Content-Type': 'application/json' };
 }
+
+afterEach((ctx) => {
+  if (ctx.task.result?.state === 'fail') {
+    const err = ctx.task.result.errors?.[0];
+    process.stdout.write(`::error title=FAIL ${ctx.task.name}::${err?.message ?? 'unknown'}\n`);
+  }
+});
 
 beforeAll(async () => {
   const res = await fetch(`${API_BASE}/auth/login`, {
