@@ -50,11 +50,15 @@ jobs:
           npx prisma db seed
       - name: Start server and wait for readiness
         run: |
-          npm start &
-          timeout 60 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 1; done'
+          nohup npm start > /tmp/nextjs.log 2>&1 &
+          echo $! > /tmp/nextjs.pid
+          timeout 60 bash -c 'until curl -sf http://localhost:3000/api/health; do echo "waiting..."; sleep 2; done'
         env:
           DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test
           JWT_SECRET: test-secret-key-for-ci
+      - name: Show server log if startup failed
+        if: failure()
+        run: cat /tmp/nextjs.log || echo "No log file"
       - name: Run Unit & Integration Tests
         run: npm run test:integration -- --run
         env:
