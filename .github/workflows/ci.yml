@@ -34,6 +34,9 @@ jobs:
           --health-retries=3
         ports:
           - 3306:3306
+    env:
+      DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test
+      JWT_SECRET: test-secret-key-for-ci
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -41,26 +44,26 @@ jobs:
           node-version: '18'
       - run: npm ci
       - run: npx prisma generate
-      - run: npm run build
       - name: Setup Prisma Database
-        env:
-          DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test
         run: |
           npx prisma db push --accept-data-loss
           npx prisma db seed
-      - name: Start server and wait for readiness
+      - name: Start dev server and wait for readiness
         run: |
-          nohup npm start > /tmp/nextjs.log 2>&1 &
-          echo $! > /tmp/nextjs.pid
-          timeout 60 bash -c 'until curl -sf http://localhost:3000/api/health; do echo "waiting..."; sleep 2; done'
-        env:
-          DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test
-          JWT_SECRET: test-secret-key-for-ci
-      - name: Show server log if startup failed
+          nohup npx next dev --port 3000 > /tmp/nextjs.log 2>&1 &
+          echo "Server PID: $!"
+          echo "Waiting for server..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health; then
+              echo "Server is ready after ${i}s"
+              break
+            fi
+            echo "  attempt $i/60..."
+            sleep 2
+          done
+          curl -sf http://localhost:3000/api/health || (echo "=== SERVER LOG ===" && cat /tmp/nextjs.log && exit 1)
+      - name: Run Integration Tests
+        run: npm run test:integration -- --run
+      - name: Show server log on failure
         if: failure()
         run: cat /tmp/nextjs.log || echo "No log file"
-      - name: Run Unit & Integration Tests
-        run: npm run test:integration -- --run
-        env:
-          DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test
-          JWT_SECRET: test-secret-key-for-ci
