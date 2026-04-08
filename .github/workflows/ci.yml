@@ -52,54 +52,60 @@ jobs:
         run: |
           for i in $(seq 1 30); do
             if nc -z 127.0.0.1 3306 2>/dev/null; then
-              echo "MariaDB TCP port open after $i attempts"
+              echo "MariaDB ready after $i attempts"
               break
             fi
-            echo "Attempt $i: waiting..."
             sleep 2
           done
       - name: Setup database
         run: |
           npx prisma db push --accept-data-loss
           npx prisma db seed
-      - name: Check port 3000
+      - name: Start server, run tests, show results
         run: |
-          echo "=== Checking port 3000 ==="
-          if nc -z localhost 3000 2>/dev/null; then
-            echo "WARNING: port 3000 is already in use!"
-            lsof -ti:3000 | xargs kill -9 2>/dev/null || true
-            echo "Killed processes on port 3000"
-          else
-            echo "Port 3000 is free"
-          fi
-      - name: Start server
-        run: |
+          # Kill anything on port 3000
+          lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+
+          # Start server
           nohup npm start > /tmp/nextjs.log 2>&1 &
-          echo $! > /tmp/server.pid
-          echo "Server PID: $(cat /tmp/server.pid)"
-          sleep 1
-          echo "Process alive: $(kill -0 $(cat /tmp/server.pid) 2>/dev/null && echo yes || echo NO)"
-          echo "=== Initial server log ==="
-          cat /tmp/nextjs.log
-      - name: Wait for server
-        run: |
-          SERVER_PID=$(cat /tmp/server.pid)
-          for i in $(seq 1 40); do
+          SERVER_PID=$!
+          echo "Server PID: $SERVER_PID"
+
+          # Wait up to 30s for server to be ready
+          READY=0
+          for i in $(seq 1 15); do
             sleep 2
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health 2>/dev/null || echo "ERR")
-            echo "[$i] HTTP $STATUS (PID alive: $(kill -0 $SERVER_PID 2>/dev/null && echo yes || echo no))"
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health 2>/dev/null || echo "000")
+            echo "[$i] health: $STATUS"
             if [ "$STATUS" = "200" ]; then
-              echo "Server ready!"
+              READY=1
               break
             fi
             if ! kill -0 $SERVER_PID 2>/dev/null; then
-              echo "=== Server log after crash ==="
-              cat /tmp/nextjs.log
-              exit 1
+              echo "Server died!"
+              break
             fi
           done
+
           echo "=== Server log ==="
           cat /tmp/nextjs.log
-          curl -sf http://localhost:3000/api/health
-      - name: Run integration tests
-        run: npm run test:integration -- --run --reporter=verbose --reporter=github-actions
+
+          if [ "$READY" != "1" ]; then
+            echo "Server never became ready"
+            exit 1
+          fi
+
+          # Run tests and capture output
+          npm run test:integration -- --run --reporter=verbose 2>&1 | tee /tmp/test_output.txt
+          TEST_EXIT=${PIPESTATUS[0]}
+
+          echo "=== Test exit: $TEST_EXIT ==="
+          exit $TEST_EXIT
+
+      - name: Show test output (always)
+        if: always()
+        run: |
+          echo "=== Test output ==="
+          cat /tmp/test_output.txt 2>/dev/null || echo "(no test output)"
+          echo "=== Server log ==="
+          cat /tmp/nextjs.log 2>/dev/null || echo "(no server log)"
