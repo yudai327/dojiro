@@ -21,14 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: mariadb:11
+        image: mariadb:10.11
         env:
           MARIADB_ROOT_PASSWORD: root
           MARIADB_DATABASE: dojiro_test
           MARIADB_USER: dojiro
           MARIADB_PASSWORD: dojiro_pass
         options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -u root -proot"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -48,29 +48,26 @@ jobs:
         run: npx prisma generate
       - name: Build
         run: npm run build
+      - name: Wait for MariaDB
+        run: |
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 3306 2>/dev/null; then
+              echo "MariaDB TCP port open after $i attempts"
+              break
+            fi
+            echo "Attempt $i: waiting..."
+            sleep 2
+          done
       - name: Setup database
         run: |
-          echo "=== DB connection test ==="
-          mysql -h 127.0.0.1 -u dojiro -pdojiro_pass dojiro_test -e "SELECT 1 AS ok" || echo "mysql client check failed (non-fatal)"
-
-          echo "=== prisma db push ==="
           npx prisma db push --accept-data-loss
-
-          echo "=== prisma db seed ==="
           npx prisma db seed
       - name: Start server, verify, and run tests
         run: |
-          echo "=== Environment ==="
-          echo "Node: $(node --version)"
-          echo "PWD: $(pwd)"
-          ls -la .next/ | head -5
-
-          echo "=== Starting server ==="
           nohup npm start > /tmp/nextjs.log 2>&1 &
           SERVER_PID=$!
-          echo "PID: $SERVER_PID"
+          echo "Server PID: $SERVER_PID"
 
-          echo "=== Waiting for server ==="
           for i in $(seq 1 40); do
             sleep 2
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health 2>/dev/null || echo "ERR")
@@ -88,8 +85,5 @@ jobs:
           echo "=== Server log ==="
           cat /tmp/nextjs.log
 
-          echo "=== Final health check ==="
           curl -sf http://localhost:3000/api/health || exit 1
-
-          echo "=== Running tests ==="
           npm run test:integration -- --run
