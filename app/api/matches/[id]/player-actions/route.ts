@@ -8,12 +8,31 @@ export async function POST(
 ) {
   try {
     const matchId = parseInt(params.id, 10);
+    if (isNaN(matchId)) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
+    }
+
     const body = await req.json();
     const { playerId, actionType, result } = body;
 
+    const VALID_ACTION_TYPES = ['attack', 'catch', 'cut'];
+    const VALID_RESULTS = ['success', 'fail'];
+
+    if (!VALID_ACTION_TYPES.includes(actionType)) {
+      return NextResponse.json({ error: 'Invalid actionType' }, { status: 400 });
+    }
+    if (!VALID_RESULTS.includes(result)) {
+      return NextResponse.json({ error: 'Invalid result' }, { status: 400 });
+    }
+
+    const playerIdInt = parseInt(playerId, 10);
+    if (isNaN(playerIdInt)) {
+      return NextResponse.json({ error: 'Invalid playerId format' }, { status: 400 });
+    }
+
     // Get player to find team
     const player = await prisma.player.findUnique({
-      where: { id: parseInt(playerId, 10) },
+      where: { id: playerIdInt },
     });
 
     if (!player) {
@@ -25,7 +44,7 @@ export async function POST(
       data: {
         matchId,
         teamId: player.teamId,
-        playerId: player.id,
+        playerId: playerIdInt,
         actionType,
         result,
       },
@@ -33,13 +52,13 @@ export async function POST(
 
     // Update or create player_match_stats
     let stats = await prisma.playerMatchStats.findFirst({
-      where: { playerId: player.id, matchId },
+      where: { playerId: playerIdInt, matchId },
     });
 
     if (!stats) {
       stats = await prisma.playerMatchStats.create({
         data: {
-          playerId: player.id,
+          playerId: playerIdInt,
           matchId,
           attackSuccessCount: 0,
           attackFailCount: 0,
@@ -79,6 +98,9 @@ export async function GET(
 ) {
   try {
     const matchId = parseInt(params.id, 10);
+    if (isNaN(matchId)) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
+    }
     const actions = await prisma.playerAction.findMany({
       where: { matchId },
     });
