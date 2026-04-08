@@ -117,4 +117,6 @@ model PlayerMatchStats {
   cutCount             Int?     @map("cut_count")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([playerId, matchId])
 }

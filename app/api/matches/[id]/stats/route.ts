@@ -11,6 +11,11 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
     }
 
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!match || match.isDeleted) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
     const stats = await prisma.playerMatchStats.findMany({
       where: { matchId },
     });

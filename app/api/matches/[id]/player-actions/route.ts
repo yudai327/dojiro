@@ -12,6 +12,11 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
     }
 
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!match || match.isDeleted) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
     const body = await req.json();
     const { playerId, actionType, result } = body;
 
@@ -50,25 +55,6 @@ export async function POST(
       },
     });
 
-    // Update or create player_match_stats
-    let stats = await prisma.playerMatchStats.findFirst({
-      where: { playerId: playerIdInt, matchId },
-    });
-
-    if (!stats) {
-      stats = await prisma.playerMatchStats.create({
-        data: {
-          playerId: playerIdInt,
-          matchId,
-          attackSuccessCount: 0,
-          attackFailCount: 0,
-          catchSuccessCount: 0,
-          catchFailCount: 0,
-          cutCount: 0,
-        },
-      });
-    }
-
     // Increment counters based on action
     const updateData: { [key: string]: { increment: number } } = {};
     if (actionType === 'attack') {
@@ -79,9 +65,19 @@ export async function POST(
       updateData.cutCount = { increment: 1 };
     }
 
-    await prisma.playerMatchStats.update({
-      where: { id: stats.id },
-      data: updateData,
+    // Use upsert to prevent race conditions on concurrent requests
+    await prisma.playerMatchStats.upsert({
+      where: { playerId_matchId: { playerId: playerIdInt, matchId } },
+      create: {
+        playerId: playerIdInt,
+        matchId,
+        attackSuccessCount: actionType === 'attack' && result === 'success' ? 1 : 0,
+        attackFailCount: actionType === 'attack' && result === 'fail' ? 1 : 0,
+        catchSuccessCount: actionType === 'catch' && result === 'success' ? 1 : 0,
+        catchFailCount: actionType === 'catch' && result === 'fail' ? 1 : 0,
+        cutCount: actionType === 'cut' ? 1 : 0,
+      },
+      update: updateData,
     });
 
     return NextResponse.json(action, { status: 201 });
@@ -101,6 +97,12 @@ export async function GET(
     if (isNaN(matchId)) {
       return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
     }
+
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!match || match.isDeleted) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
     const actions = await prisma.playerAction.findMany({
       where: { matchId },
     });
