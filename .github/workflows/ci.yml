@@ -47,13 +47,13 @@ jobs:
         run: |
           npx prisma db push --accept-data-loss
           npx prisma db seed
-      - name: Start Next.js Server
-        run: npm start &
+      - name: Start server and wait for readiness
+        run: |
+          npm start &
+          timeout 60 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 1; done'
         env:
           DATABASE_URL: mysql://dojiro:dojiro_pass@localhost:3306/dojiro_test
           JWT_SECRET: test-secret-key-for-ci
-      - name: Wait for server to be ready
-        run: timeout 60 bash -c 'until curl -sf http://localhost:3000/api/health; do sleep 1; done'
       - name: Run Unit & Integration Tests
         run: npm run test:integration -- --run
         env:
