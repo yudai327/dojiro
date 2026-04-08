@@ -1,7 +1,26 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 
-// API Base URL for tests
 const API_BASE = 'http://localhost:3000/api';
+
+let authToken: string | null = null;
+
+function authHeaders(): Record<string, string> {
+  return authToken
+    ? { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' };
+}
+
+beforeAll(async () => {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'changeme' }),
+  });
+  if (res.ok) {
+    const data = await res.json();
+    authToken = data.token;
+  }
+});
 
 describe('API Integration Tests', () => {
   describe('Health Check', () => {
@@ -14,9 +33,44 @@ describe('API Integration Tests', () => {
     });
   });
 
+  describe('Authentication', () => {
+    it('should login with valid credentials', async () => {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@example.com', password: 'changeme' }),
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data).toHaveProperty('token');
+      expect(data).toHaveProperty('user');
+      expect(data.user.email).toBe('admin@example.com');
+    });
+
+    it('should fail with invalid credentials', async () => {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@example.com', password: 'wrongpassword' }),
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it('should fail with non-existent user', async () => {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'nonexistent@example.com', password: 'anypassword' }),
+      });
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('Events CRUD', () => {
     it('should get events list', async () => {
-      const res = await fetch(`${API_BASE}/events`);
+      const res = await fetch(`${API_BASE}/events`, {
+        headers: authHeaders(),
+      });
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(Array.isArray(data)).toBe(true);
@@ -25,7 +79,7 @@ describe('API Integration Tests', () => {
     it('should create an event', async () => {
       const res = await fetch(`${API_BASE}/events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({
           name: 'Test Tournament',
           eventType: 'tournament',
@@ -43,7 +97,9 @@ describe('API Integration Tests', () => {
 
   describe('Teams CRUD', () => {
     it('should get teams list', async () => {
-      const res = await fetch(`${API_BASE}/teams`);
+      const res = await fetch(`${API_BASE}/teams`, {
+        headers: authHeaders(),
+      });
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(Array.isArray(data)).toBe(true);
@@ -52,7 +108,7 @@ describe('API Integration Tests', () => {
     it('should create a team', async () => {
       const res = await fetch(`${API_BASE}/teams`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({
           name: 'Test Team',
           category: 'men',
@@ -68,68 +124,30 @@ describe('API Integration Tests', () => {
 
   describe('Matches CRUD', () => {
     it('should get matches list', async () => {
-      const res = await fetch(`${API_BASE}/matches`);
+      const res = await fetch(`${API_BASE}/matches`, {
+        headers: authHeaders(),
+      });
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(Array.isArray(data)).toBe(true);
     });
 
     it('should get match by id', async () => {
-      // First get a list of matches
-      const listRes = await fetch(`${API_BASE}/matches`);
+      const listRes = await fetch(`${API_BASE}/matches`, {
+        headers: authHeaders(),
+      });
       const matches = await listRes.json();
 
       if (matches.length > 0) {
         const matchId = matches[0].id;
-        const res = await fetch(`${API_BASE}/matches/${matchId}`);
+        const res = await fetch(`${API_BASE}/matches/${matchId}`, {
+          headers: authHeaders(),
+        });
         expect(res.status).toBe(200);
         const data = await res.json();
         expect(data).toHaveProperty('id');
         expect(data.id).toBe(matchId);
       }
-    });
-  });
-
-  describe('Authentication', () => {
-    it('should login with valid credentials', async () => {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'admin@example.com',
-          password: 'changeme',
-        }),
-      });
-      expect(res.status).toBe(200);
-      const data = await res.json();
-      expect(data).toHaveProperty('token');
-      expect(data).toHaveProperty('user');
-      expect(data.user).toHaveProperty('email');
-      expect(data.user.email).toBe('admin@example.com');
-    });
-
-    it('should fail with invalid credentials', async () => {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'admin@example.com',
-          password: 'wrongpassword',
-        }),
-      });
-      expect(res.status).toBe(401);
-    });
-
-    it('should fail with non-existent user', async () => {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'nonexistent@example.com',
-          password: 'anypassword',
-        }),
-      });
-      expect(res.status).toBe(401);
     });
   });
 });
