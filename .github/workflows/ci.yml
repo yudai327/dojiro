@@ -62,28 +62,44 @@ jobs:
         run: |
           npx prisma db push --accept-data-loss
           npx prisma db seed
-      - name: Start server, verify, and run tests
+      - name: Check port 3000
+        run: |
+          echo "=== Checking port 3000 ==="
+          if nc -z localhost 3000 2>/dev/null; then
+            echo "WARNING: port 3000 is already in use!"
+            lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+            echo "Killed processes on port 3000"
+          else
+            echo "Port 3000 is free"
+          fi
+      - name: Start server
         run: |
           nohup npm start > /tmp/nextjs.log 2>&1 &
-          SERVER_PID=$!
-          echo "Server PID: $SERVER_PID"
-
+          echo $! > /tmp/server.pid
+          echo "Server PID: $(cat /tmp/server.pid)"
+          sleep 1
+          echo "Process alive: $(kill -0 $(cat /tmp/server.pid) 2>/dev/null && echo yes || echo NO)"
+          echo "=== Initial server log ==="
+          cat /tmp/nextjs.log
+      - name: Wait for server
+        run: |
+          SERVER_PID=$(cat /tmp/server.pid)
           for i in $(seq 1 40); do
             sleep 2
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health 2>/dev/null || echo "ERR")
-            echo "[$i] HTTP $STATUS"
+            echo "[$i] HTTP $STATUS (PID alive: $(kill -0 $SERVER_PID 2>/dev/null && echo yes || echo no))"
             if [ "$STATUS" = "200" ]; then
               echo "Server ready!"
               break
             fi
             if ! kill -0 $SERVER_PID 2>/dev/null; then
-              echo "Server process died!"
-              break
+              echo "=== Server log after crash ==="
+              cat /tmp/nextjs.log
+              exit 1
             fi
           done
-
           echo "=== Server log ==="
           cat /tmp/nextjs.log
-
-          curl -sf http://localhost:3000/api/health || exit 1
-          npm run test:integration -- --run
+          curl -sf http://localhost:3000/api/health
+      - name: Run integration tests
+        run: npm run test:integration -- --run --reporter=verbose --reporter=github-actions
