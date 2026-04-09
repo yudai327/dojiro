@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '../../../../lib/prisma';
+import prisma from '../../../../../lib/prisma';
 
 // POST create player action
 export async function POST(
@@ -8,12 +8,36 @@ export async function POST(
 ) {
   try {
     const matchId = parseInt(params.id, 10);
+    if (isNaN(matchId)) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
+    }
+
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!match || match.isDeleted) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
     const body = await req.json();
     const { playerId, actionType, result } = body;
 
+    const VALID_ACTION_TYPES = ['attack', 'catch', 'cut'];
+    const VALID_RESULTS = ['success', 'fail'];
+
+    if (!VALID_ACTION_TYPES.includes(actionType)) {
+      return NextResponse.json({ error: 'Invalid actionType' }, { status: 400 });
+    }
+    if (!VALID_RESULTS.includes(result)) {
+      return NextResponse.json({ error: 'Invalid result' }, { status: 400 });
+    }
+
+    const playerIdInt = parseInt(playerId, 10);
+    if (isNaN(playerIdInt)) {
+      return NextResponse.json({ error: 'Invalid playerId format' }, { status: 400 });
+    }
+
     // Get player to find team
     const player = await prisma.player.findUnique({
-      where: { id: parseInt(playerId, 10) },
+      where: { id: playerIdInt },
     });
 
     if (!player) {
@@ -25,30 +49,11 @@ export async function POST(
       data: {
         matchId,
         teamId: player.teamId,
-        playerId: player.id,
+        playerId: playerIdInt,
         actionType,
         result,
       },
     });
-
-    // Update or create player_match_stats
-    let stats = await prisma.playerMatchStats.findFirst({
-      where: { playerId: player.id, matchId },
-    });
-
-    if (!stats) {
-      stats = await prisma.playerMatchStats.create({
-        data: {
-          playerId: player.id,
-          matchId,
-          attackSuccessCount: 0,
-          attackFailCount: 0,
-          catchSuccessCount: 0,
-          catchFailCount: 0,
-          cutCount: 0,
-        },
-      });
-    }
 
     // Increment counters based on action
     const updateData: { [key: string]: { increment: number } } = {};
@@ -60,9 +65,19 @@ export async function POST(
       updateData.cutCount = { increment: 1 };
     }
 
-    await prisma.playerMatchStats.update({
-      where: { id: stats.id },
-      data: updateData,
+    // Use upsert to prevent race conditions on concurrent requests
+    await prisma.playerMatchStats.upsert({
+      where: { playerId_matchId: { playerId: playerIdInt, matchId } },
+      create: {
+        playerId: playerIdInt,
+        matchId,
+        attackSuccessCount: actionType === 'attack' && result === 'success' ? 1 : 0,
+        attackFailCount: actionType === 'attack' && result === 'fail' ? 1 : 0,
+        catchSuccessCount: actionType === 'catch' && result === 'success' ? 1 : 0,
+        catchFailCount: actionType === 'catch' && result === 'fail' ? 1 : 0,
+        cutCount: actionType === 'cut' ? 1 : 0,
+      },
+      update: updateData,
     });
 
     return NextResponse.json(action, { status: 201 });
@@ -79,6 +94,15 @@ export async function GET(
 ) {
   try {
     const matchId = parseInt(params.id, 10);
+    if (isNaN(matchId)) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
+    }
+
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!match || match.isDeleted) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    }
+
     const actions = await prisma.playerAction.findMany({
       where: { matchId },
     });
