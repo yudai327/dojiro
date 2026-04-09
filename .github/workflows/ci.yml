@@ -124,22 +124,39 @@ jobs:
 
           echo "::notice title=Test Exit::code=$TEST_EXIT"
 
-          # Parse JSON results and emit annotations for each failure
+          # Verbose output から失敗テスト情報をアノテーションに出力
+          FAIL_LINES=$(grep -E '(FAIL|✗|×| ✕|AssertionError|Expected|received|Error:)' /tmp/test_output.txt 2>/dev/null | head -20 | tr '\n' ' | ' | cut -c1-500)
+          if [ -n "$FAIL_LINES" ]; then
+            echo "::error title=Test Failures::$FAIL_LINES"
+          fi
+
+          # JSON から失敗詳細を取得(フォールバック含む)
           python3 - << 'PYEOF'
 import json, os, sys
-try:
-    with open('/tmp/test_results.json') as f:
-        data = json.load(f)
-    suites = data.get('testResults', [])
-    for suite in suites:
-        for test in suite.get('assertionResults', []):
-            if test.get('status') == 'failed':
-                name = test.get('fullName', test.get('title', '?'))
-                msgs = test.get('failureMessages', ['(no message)'])
-                msg = msgs[0].replace('\n', ' ').replace('%', '%25')[:300]
-                print(f'::error title=FAIL {name}::{msg}')
-except Exception as e:
-    print(f'::notice title=JSON parse error::{e}')
+
+# JSON レポーターファイルを試す
+json_file = '/tmp/test_results.json'
+if os.path.exists(json_file):
+    try:
+        with open(json_file) as f:
+            data = json.load(f)
+        # Vitest JSON format: testResults[].assertionResults[]
+        suites = data.get('testResults', [])
+        found = False
+        for suite in suites:
+            for test in suite.get('assertionResults', []):
+                if test.get('status') == 'failed':
+                    found = True
+                    name = test.get('fullName', test.get('title', '?'))
+                    msgs = test.get('failureMessages', ['(no message)'])
+                    msg = msgs[0].replace('\n', ' ').replace('%', '%25')[:300]
+                    print(f'::error title=FAIL::{name} | {msg}')
+        if not found:
+            print(f'::notice title=JSON Keys::{list(data.keys())}')
+    except Exception as e:
+        print(f'::notice title=JSON parse error::{e}')
+else:
+    print('::notice title=JSON file::not found at /tmp/test_results.json')
 PYEOF
 
           # Write test output to step summary
