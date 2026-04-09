@@ -114,13 +114,34 @@ jobs:
           EVENTS_RESP=$(curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/events 2>/dev/null)
           echo "::notice title=Events Response::${EVENTS_RESP:0:200}"
 
-          # Run tests and capture output
-          npm run test:integration -- --run --reporter=verbose 2>&1 | tee /tmp/test_output.txt
+          # Run tests: verbose to stdout, json to file
+          npm run test:integration -- --run \
+            --reporter=verbose \
+            --reporter=json --outputFile=/tmp/test_results.json \
+            2>&1 | tee /tmp/test_output.txt
           TEST_EXIT=${PIPESTATUS[0]}
 
           echo "::notice title=Test Exit::code=$TEST_EXIT"
 
-          # Write test output to step summary (visible in Actions UI)
+          # Parse JSON results and emit annotations for each failure
+          python3 - << 'PYEOF'
+import json, os, sys
+try:
+    with open('/tmp/test_results.json') as f:
+        data = json.load(f)
+    suites = data.get('testResults', [])
+    for suite in suites:
+        for test in suite.get('assertionResults', []):
+            if test.get('status') == 'failed':
+                name = test.get('fullName', test.get('title', '?'))
+                msgs = test.get('failureMessages', ['(no message)'])
+                msg = msgs[0].replace('\n', ' ').replace('%', '%25')[:300]
+                print(f'::error title=FAIL {name}::{msg}')
+except Exception as e:
+    print(f'::notice title=JSON parse error::{e}')
+PYEOF
+
+          # Write test output to step summary
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat /tmp/test_output.txt >> $GITHUB_STEP_SUMMARY
