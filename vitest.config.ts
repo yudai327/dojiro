@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
+// Integration tests use 'node' environment (no browser APIs)
+// Unit tests use 'happy-dom' environment
 export default defineConfig({
   test: {
     globals: true,
