@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
+    environmentMatchGlobs: [
+      ['**/*.integration.test.ts', 'node'],
+    ],
     setupFiles: [],
     testTimeout: 30000,
     coverage: {
