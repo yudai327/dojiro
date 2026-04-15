@@ -1,8 +1,11 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+export type UserRole = 'admin' | 'viewer';
 
 export interface AuthenticatedUser {
   userId: number;
   email: string;
+  role: UserRole;
 }
 
 /**
@@ -12,41 +15,45 @@ export interface AuthenticatedUser {
 export function getAuthenticatedUser(request: NextRequest): AuthenticatedUser | null {
   const userId = request.headers.get('x-user-id');
   const email = request.headers.get('x-user-email');
+  const role = request.headers.get('x-user-role') as UserRole | null;
 
-  if (!userId || !email) {
+  if (!userId || !email || !role) {
     return null;
   }
 
   return {
     userId: parseInt(userId, 10),
     email,
+    role,
   };
 }
 
-/**
- * Middleware to require authentication on API routes
- * Usage in route handler:
- *
- * export async function GET(req: NextRequest) {
- *   const user = requireAuth(req);
- *   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
- *   // ... rest of handler
- * }
- */
 export function requireAuth(request: NextRequest): AuthenticatedUser | null {
   return getAuthenticatedUser(request);
 }
 
 /**
- * Check if user is authorized for a specific action
- * Extend this with actual role/permission checks from database
+ * Require admin role. Returns 403 response if not admin.
  */
-export async function canAccessResource(
-  _userId: number,
-  _resourceType: string,
-  _resourceId?: number
-): Promise<boolean> {
-  // TODO: Implement actual permission checking
-  // For now, any authenticated user can access
-  return true;
+export function requireAdmin(request: NextRequest): AuthenticatedUser | NextResponse {
+  const user = getAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (user.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return user;
+}
+
+/**
+ * Check if user has permission for a resource/action.
+ * Roles: admin = full access, viewer = read-only
+ */
+export function canAccessResource(
+  user: AuthenticatedUser,
+  action: 'read' | 'write'
+): boolean {
+  if (action === 'read') return true;
+  return user.role === 'admin';
 }

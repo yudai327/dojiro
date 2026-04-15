@@ -33,10 +33,11 @@ export function middleware(request: NextRequest) {
     const token = authHeader.slice(7);
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { userId: number; email: string };
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: number; email: string; role: string };
       const requestHeaders = new Headers(request.headers);
       requestHeaders.set('x-user-id', String(decoded.userId));
       requestHeaders.set('x-user-email', decoded.email);
+      requestHeaders.set('x-user-role', decoded.role ?? 'viewer');
 
       return NextResponse.next({
         request: { headers: requestHeaders },
