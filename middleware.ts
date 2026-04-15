@@ -7,7 +7,7 @@ if (!JWT_SECRET) {
 }
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/api/auth/login', '/api/auth/logout', '/api/health', '/login', '/'];
+const PUBLIC_ROUTES = ['/api/auth/login', '/api/health', '/login', '/'];
 
 const PROTECTED_PAGE_ROUTES = ['/dashboard', '/events', '/teams', '/matches'];
 
