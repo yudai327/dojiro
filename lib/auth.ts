@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from './prisma';
 
 export type UserRole = 'admin' | 'viewer';
 
@@ -9,34 +10,37 @@ export interface AuthenticatedUser {
 }
 
 /**
- * Extract authenticated user from request headers
- * (Set by middleware after JWT verification)
+ * Extract and validate authenticated user from request headers.
+ * Checks tokenVersion against DB to support token invalidation on logout.
  */
-export function getAuthenticatedUser(request: NextRequest): AuthenticatedUser | null {
+export async function requireAuth(request: NextRequest): Promise<AuthenticatedUser | null> {
   const userId = request.headers.get('x-user-id');
   const email = request.headers.get('x-user-email');
   const role = request.headers.get('x-user-role') as UserRole | null;
+  const tokenVersion = request.headers.get('x-token-version');
 
-  if (!userId || !email || !role) {
+  if (!userId || !email || !role || tokenVersion === null) {
     return null;
   }
 
-  return {
-    userId: parseInt(userId, 10),
-    email,
-    role,
-  };
-}
+  // Verify tokenVersion matches DB (invalidates tokens after logout)
+  const user = await prisma.user.findUnique({
+    where: { id: parseInt(userId, 10) },
+    select: { tokenVersion: true, isActive: true },
+  });
 
-export function requireAuth(request: NextRequest): AuthenticatedUser | null {
-  return getAuthenticatedUser(request);
+  if (!user || !user.isActive || user.tokenVersion !== parseInt(tokenVersion, 10)) {
+    return null;
+  }
+
+  return { userId: parseInt(userId, 10), email, role };
 }
 
 /**
  * Require admin role. Returns 403 response if not admin.
  */
-export function requireAdmin(request: NextRequest): AuthenticatedUser | NextResponse {
-  const user = getAuthenticatedUser(request);
+export async function requireAdmin(request: NextRequest): Promise<AuthenticatedUser | NextResponse> {
+  const user = await requireAuth(request);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -48,7 +52,7 @@ export function requireAdmin(request: NextRequest): AuthenticatedUser | NextResp
 
 /**
  * Check if user has permission for a resource/action.
- * Roles: admin = full access, viewer = read-only
+ * viewer = read-only, admin = full access
  */
 export function canAccessResource(
   user: AuthenticatedUser,

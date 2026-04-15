@@ -6,7 +6,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const user = requireAdmin(req);
+  const user = await requireAdmin(req);
   if (user instanceof NextResponse) return user;
 
   try {
@@ -75,7 +75,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const user = requireAuth(req);
+  const user = await requireAuth(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
