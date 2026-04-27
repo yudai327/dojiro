@@ -11,9 +11,14 @@ export async function GET(
 
   try {
     const { id } = params;
+    const matchId = parseInt(id, 10);
+
+    if (isNaN(matchId)) {
+      return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
+    }
 
     const match = await prisma.match.findUnique({
-      where: { id: parseInt(id, 10) },
+      where: { id: matchId },
       include: {
         event: true,
         teamHome: {
@@ -33,7 +38,7 @@ export async function GET(
       },
     });
 
-    if (!match) {
+    if (!match || match.isDeleted) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     }
 
