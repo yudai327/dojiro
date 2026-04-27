@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../../../lib/prisma';
+import { requireAuth } from '../../../../../lib/auth';
 
-// POST create player action
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const matchId = parseInt(params.id, 10);
     if (isNaN(matchId)) {
@@ -35,7 +38,6 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid playerId format' }, { status: 400 });
     }
 
-    // Get player to find team
     const player = await prisma.player.findUnique({
       where: { id: playerIdInt },
     });
@@ -44,7 +46,6 @@ export async function POST(
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
     }
 
-    // Create player action
     const action = await prisma.playerAction.create({
       data: {
         matchId,
@@ -65,7 +66,6 @@ export async function POST(
       updateData.cutCount = { increment: 1 };
     }
 
-    // Use upsert to prevent race conditions on concurrent requests
     await prisma.playerMatchStats.upsert({
       where: { playerId_matchId: { playerId: playerIdInt, matchId } },
       create: {
@@ -87,11 +87,13 @@ export async function POST(
   }
 }
 
-// GET player actions for match
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const matchId = parseInt(params.id, 10);
     if (isNaN(matchId)) {

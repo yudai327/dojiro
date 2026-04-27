@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../lib/prisma';
+import { requireAuth } from '../../../lib/auth';
 
-// GET all events
 export async function GET(req: NextRequest) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const events = await prisma.event.findMany({ where: { isDeleted: false } });
     return NextResponse.json(events);
@@ -11,8 +14,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST create event
 export async function POST(req: NextRequest) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await req.json();
     const { name, eventType, startDate, endDate, venue, note } = body;

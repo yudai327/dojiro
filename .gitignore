@@ -43,6 +43,7 @@ node_modules/
 .next/
 .env
 .env.*
+!.env.local.example
 .prisma/
 coverage/
 dist/

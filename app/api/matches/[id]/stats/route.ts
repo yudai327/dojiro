@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../../../lib/prisma';
+import { requireAuth } from '../../../../../lib/auth';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = requireAuth(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const matchId = parseInt(params.id, 10);
     if (isNaN(matchId)) {
@@ -27,7 +31,6 @@ export async function GET(
     });
     const playerMap = new Map(players.map((p) => [p.id, p]));
 
-    // Enrich with player names and computed rates
     const enriched = stats.map((s) => {
       const player = playerMap.get(s.playerId);
       const attackAttempt = (s.attackSuccessCount || 0) + (s.attackFailCount || 0);
